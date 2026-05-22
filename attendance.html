@@ -1,0 +1,1008 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI Attendance — Face Recognition</title>
+    <meta name="description" content="Sleek biometric attendance system using real-time webcam face identification.">
+    <!-- Google Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Line Awesome Icons -->
+    <link rel="stylesheet" href="https://maxst.icons8.com/vue-static/landings/line-awesome/line-awesome/1.3.0/css/line-awesome.min.css">
+    <!-- face-api.js Vlad Mandic fork -->
+    <script src="https://cdn.jsdelivr.net/npm/@vladmandic/face-api/dist/face-api.js"></script>
+
+    <style>
+        :root {
+            --bg-app:         #f8fafc;   /* Soft slate-light background */
+            --bg-card:        #ffffff;   /* Pure white cards */
+            --border:         #e2e8f0;   /* Light border */
+            --border-focus:   #ff8f16;   /* Signature Golden-Orange focus */
+            --text-primary:   #1e293b;   /* Slate 800 - dark text */
+            --text-secondary: #475569;   /* Slate 600 - subtitle */
+            --text-muted:     #64748b;   /* Slate 500 - label */
+            --accent:         #ff8f16;   /* Portal accent orange */
+            --accent-dim:     rgba(255, 143, 22, 0.08); /* 8% brand orange */
+            --accent-green:   #2dce89;   /* Modern success green */
+            --accent-green-dim: rgba(45, 206, 137, 0.08);
+            --radius-lg:      16px;
+            --radius-md:      12px;
+            --radius-sm:      8px;
+            --font:           'Inter', sans-serif;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: var(--font);
+            background-color: var(--bg-app);
+            color: var(--text-primary);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            overflow-x: hidden;
+        }
+
+        /* --- Header Navigation Bar --- */
+        .navbar {
+            background-color: var(--bg-card);
+            border-bottom: 1px solid var(--border);
+            padding: 16px 24px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.02);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .brand-icon {
+            width: 38px;
+            height: 38px;
+            border-radius: var(--radius-sm);
+            background: linear-gradient(135deg, var(--accent), #ff6a00);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.3rem;
+            box-shadow: 0 4px 12px rgba(255, 143, 22, 0.3);
+        }
+
+        .brand-title {
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: -0.3px;
+        }
+
+        .dashboard-btn {
+            background-color: var(--accent);
+            border: 1px solid var(--accent);
+            color: white;
+            padding: 8px 16px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.88rem;
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            cursor: pointer;
+            text-decoration: none;
+            transition: all 0.2s ease;
+        }
+
+        .dashboard-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 15px rgba(255, 143, 22, 0.25);
+            background-color: #e57f12;
+            border-color: #e57f12;
+        }
+
+        /* --- Page Layout Containers --- */
+        .container {
+            flex: 1;
+            max-width: 1200px;
+            width: 100%;
+            margin: 24px auto;
+            padding: 0 24px;
+            display: grid;
+            grid-template-columns: 7fr 5fr;
+            gap: 24px;
+        }
+
+        /* --- Column Layout Panels --- */
+        .panel {
+            display: flex;
+            flex-direction: column;
+            gap: 24px;
+        }
+
+        /* --- Unified Card Face --- */
+        .card {
+            background-color: var(--bg-card);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-lg);
+            box-shadow: 0 8px 24px rgba(0,0,0,0.03);
+            overflow: hidden;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .card-header {
+            padding: 18px 24px;
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .card-title {
+            font-size: 15px;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .card-body {
+            padding: 24px;
+        }
+
+        /* --- Biometric Webcam Stream Styling --- */
+        .webcam-card {
+            border: 1px solid rgba(255, 143, 22, 0.15);
+            box-shadow: 0 10px 30px rgba(255, 143, 22, 0.03);
+        }
+
+        .webcam-wrapper {
+            position: relative;
+            width: 100%;
+            border-radius: var(--radius-md);
+            overflow: hidden;
+            background-color: #0b0f19;
+            aspect-ratio: 4/3;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+
+        video#webcam {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            transform: scaleX(-1); /* Mirror camera feed */
+        }
+
+        canvas#overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            /* Keep in normal orientation so that text labels remain legible and are not mirrored backwards */
+            pointer-events: none;
+        }
+
+        /* --- Webcam Overlay Banners --- */
+        .status-overlay-banner {
+            position: absolute;
+            top: 16px;
+            left: 16px;
+            background: rgba(11, 15, 25, 0.85);
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: white;
+            padding: 8px 14px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            z-index: 10;
+        }
+
+        .status-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background-color: #8898aa;
+        }
+
+        .status-dot.active {
+            background-color: var(--accent);
+            animation: pulse-dot 1.5s infinite;
+        }
+
+        .status-dot.success {
+            background-color: var(--accent-green);
+        }
+
+        @keyframes pulse-dot {
+            0% { box-shadow: 0 0 0 0 rgba(255, 143, 22, 0.5); }
+            70% { box-shadow: 0 0 0 6px rgba(255, 143, 22, 0); }
+            100% { box-shadow: 0 0 0 0 rgba(255, 143, 22, 0); }
+        }
+
+        /* --- Interactive Controls --- */
+        .toggle-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-top: 18px;
+        }
+
+        .switch-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85rem;
+            font-weight: 500;
+            color: var(--text-secondary);
+        }
+
+        .switch {
+            position: relative;
+            display: inline-block;
+            width: 42px;
+            height: 22px;
+        }
+
+        .switch input {
+            opacity: 0;
+            width: 0;
+            height: 0;
+        }
+
+        .slider {
+            position: absolute;
+            cursor: pointer;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background-color: #cbd5e1;
+            transition: .3s;
+            border-radius: 34px;
+        }
+
+        .slider:before {
+            position: absolute;
+            content: "";
+            height: 16px; width: 16px;
+            left: 3px; bottom: 3px;
+            background-color: white;
+            transition: .3s;
+            border-radius: 50%;
+        }
+
+        input:checked + .slider {
+            background-color: var(--accent);
+        }
+
+        input:checked + .slider:before {
+            transform: translateX(20px);
+        }
+
+        /* --- Registration Module Inputs --- */
+        .register-container {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+
+        .input-wrapper {
+            position: relative;
+            display: flex;
+            gap: 10px;
+        }
+
+        .name-input {
+            flex: 1;
+            background-color: var(--bg-app);
+            border: 1.5px solid var(--border);
+            border-radius: var(--radius-sm);
+            padding: 12px 16px;
+            color: var(--text-primary);
+            font-family: var(--font);
+            font-size: 0.9rem;
+            font-weight: 500;
+            outline: none;
+            transition: all 0.2s ease;
+        }
+
+        .name-input:focus {
+            border-color: var(--border-focus);
+            box-shadow: 0 0 0 3px rgba(255, 143, 22, 0.15);
+        }
+
+        .action-btn {
+            background-color: var(--accent);
+            border: none;
+            color: white;
+            padding: 12px 24px;
+            border-radius: var(--radius-sm);
+            font-weight: 600;
+            font-size: 0.9rem;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            white-space: nowrap;
+            box-shadow: 0 4px 12px rgba(255, 143, 22, 0.2);
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 6px 18px rgba(255, 143, 22, 0.3);
+            background-color: #e57f12;
+        }
+
+        .action-btn:disabled {
+            background-color: #cbd5e1;
+            color: #94a3b8;
+            cursor: not-allowed;
+            box-shadow: none;
+            transform: none;
+        }
+
+        /* --- Biometric Stats Badges --- */
+        .stats-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .stat-card {
+            background-color: var(--bg-app);
+            border: 1px solid var(--border);
+            border-radius: var(--radius-md);
+            padding: 16px;
+            text-align: center;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            transition: all 0.2s ease;
+        }
+
+        .stat-card:hover {
+            transform: translateY(-2px);
+            border-color: var(--border-focus);
+        }
+
+        .stat-num {
+            font-size: 1.8rem;
+            font-weight: 700;
+            color: var(--accent);
+        }
+
+        .stat-label {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        /* --- Logs list --- */
+        .logs-container {
+            max-height: 240px;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            padding-right: 4px;
+        }
+
+        .logs-container::-webkit-scrollbar { width: 4px; }
+        .logs-container::-webkit-scrollbar-track { background: transparent; }
+        .logs-container::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+
+        .log-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background-color: var(--bg-app);
+            border: 1px solid var(--border);
+            padding: 10px 14px;
+            border-radius: var(--radius-sm);
+            font-size: 0.85rem;
+            transition: all 0.15s ease;
+        }
+
+        .log-item:hover {
+            background-color: #ffffff;
+            border-color: var(--border-focus);
+            transform: translateX(2px);
+        }
+
+        .log-name {
+            font-weight: 600;
+            color: var(--text-primary);
+        }
+
+        .log-time {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+        }
+
+        .log-badge {
+            background-color: var(--accent-green-dim);
+            color: var(--accent-green);
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            letter-spacing: 0.3px;
+        }
+
+        .empty-logs-placeholder {
+            text-align: center;
+            color: var(--text-muted);
+            padding: 30px 10px;
+            font-size: 0.85rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .empty-icon {
+            font-size: 2.2rem;
+        }
+
+        /* Toast Container */
+        .toast-container {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            z-index: 1000;
+        }
+
+        .toast {
+            background: #ffffff;
+            border-left: 4px solid var(--accent);
+            border-radius: var(--radius-sm);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+            padding: 14px 20px;
+            min-width: 280px;
+            color: var(--text-primary);
+            font-size: 0.88rem;
+            font-weight: 500;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            animation: slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+        }
+
+        .toast.success { border-left-color: var(--accent-green); }
+
+        @keyframes slideIn {
+            from { transform: translateX(120%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Top Navigation Header -->
+    <header class="navbar">
+        <div class="brand">
+            <div class="brand-icon">
+                <i class="la la-camera"></i>
+            </div>
+            <div>
+                <h1 class="brand-title">AI Attendance System</h1>
+            </div>
+        </div>
+        <!-- Dashboard Button -->
+        <a href="javascript:void(0)" onclick="window.history.back()" class="dashboard-btn" title="Back to Main Dashboard">
+            <i class="la la-home"></i>
+            <span>Dashboard</span>
+        </a>
+    </header>
+
+    <!-- Main Container -->
+    <main class="container">
+
+        <!-- Left Panel: Webcam Stream -->
+        <section class="panel">
+            <div class="card webcam-card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="la la-video" style="color: var(--accent); font-size: 1.2rem;"></i>
+                        Live Biometric Camera
+                    </h2>
+                </div>
+                <div class="card-body" style="padding: 18px;">
+                    <div class="webcam-wrapper">
+                        <!-- Active overlay banner status -->
+                        <div class="status-overlay-banner" id="bannerStatus">
+                            <div class="status-dot active" id="bannerDot"></div>
+                            <span id="bannerText">Initializing face-api.js models...</span>
+                        </div>
+                        <video id="webcam" autoplay muted playsinline></video>
+                        <canvas id="overlay"></canvas>
+                    </div>
+
+                    <!-- Interactive bottom switches -->
+                    <div class="toggle-row">
+                        <div class="switch-container">
+                            <label class="switch">
+                                <input type="checkbox" id="chkActive" checked disabled>
+                                <span class="slider"></span>
+                            </label>
+                            <span>Marking Attendance Active</span>
+                        </div>
+                        <div class="switch-container">
+                            <label class="switch">
+                                <input type="checkbox" id="chkVoice" checked>
+                                <span class="slider"></span>
+                            </label>
+                            <span>Voice Announcements</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- Right Panel: Controls & Logs -->
+        <section class="panel">
+
+            <!-- Card 1: Register Face -->
+            <div class="card">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="la la-user-plus" style="color: var(--accent); font-size: 1.2rem;"></i>
+                        Register New Face Descriptor
+                    </h2>
+                </div>
+                <div class="card-body">
+                    <div class="register-container">
+                        <p style="font-size:0.8rem; color: var(--text-secondary); margin-bottom: 6px; line-height: 1.4;">
+                            Position your face clearly in the camera center and enter your full name below. We will capture your 128-point face descriptor.
+                        </p>
+                        <div class="input-wrapper">
+                            <input type="text" id="txtName" class="name-input" placeholder="Enter Full Name..." autocomplete="off">
+                            <button id="btnRegister" class="action-btn" disabled>
+                                <i class="la la-fingerprint"></i>
+                                Register
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Card 2: Biometric Statistics -->
+            <div class="stats-grid">
+                <div class="stat-card">
+                    <span class="stat-num" id="lblTotalRegistered">0</span>
+                    <span class="stat-label">Registered Faces</span>
+                </div>
+                <div class="stat-card">
+                    <span class="stat-num" id="lblTotalPresent">0</span>
+                    <span class="stat-label">Present Today</span>
+                </div>
+            </div>
+
+            <!-- Card 3: Live Logs List -->
+            <div class="card" style="flex: 1;">
+                <div class="card-header">
+                    <h2 class="card-title">
+                        <i class="la la-history" style="color: var(--accent); font-size: 1.2rem;"></i>
+                        Marked Attendance Logs
+                    </h2>
+                </div>
+                <div class="card-body" style="padding: 16px 20px;">
+                    <div class="logs-container" id="logsList">
+                        <!-- logs injected dynamically -->
+                        <div class="empty-logs-placeholder" id="logsEmpty">
+                            <div class="empty-icon">🕒</div>
+                            <span>Waiting for face matches...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+    </main>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <!-- Face API Controller JavaScript -->
+    <script>
+        const video = document.getElementById('webcam');
+        const canvas = document.getElementById('overlay');
+        const txtName = document.getElementById('txtName');
+        const btnRegister = document.getElementById('btnRegister');
+        const chkActive = document.getElementById('chkActive');
+        const chkVoice = document.getElementById('chkVoice');
+        const bannerText = document.getElementById('bannerText');
+        const bannerDot = document.getElementById('bannerDot');
+        const logsList = document.getElementById('logsList');
+        const logsEmpty = document.getElementById('logsEmpty');
+        const lblTotalRegistered = document.getElementById('lblTotalRegistered');
+        const lblTotalPresent = document.getElementById('lblTotalPresent');
+
+        let isModelsLoaded = false;
+        let registeredFaces = [];
+        let faceMatcher = null;
+        let recognitionLoop = null;
+        let lastAnnouncedName = "";
+        let lastAnnouncedTime = 0;
+        let lastLoggedTimes = {}; // name -> timestamp (ms)
+
+        // Model URI mapping directly to vladmandic's high performance CDN bundle
+        const MODEL_URL = 'https://cdn.jsdelivr.net/npm/@vladmandic/face-api/model/';
+
+        // Bootstrapping routine
+        async function boot() {
+            try {
+                // 1. Load weights
+                showStatus('Loading Tiny Face Detector...', 'active');
+                await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL);
+                showStatus('Loading Landmark68 Model...', 'active');
+                await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL);
+                showStatus('Loading Face Recognition Model...', 'active');
+                await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL);
+                
+                isModelsLoaded = true;
+                showStatus('Models loaded! Syncing local face signatures...', 'active');
+
+                // 2. Fetch descriptors from Express backend
+                await syncRegisteredFaces();
+
+                // 3. Request webcam stream
+                await startWebcam();
+
+                // 4. Activate recognition loops
+                chkActive.disabled = false;
+                btnRegister.disabled = false;
+                showStatus('Camera active: Recognition Mode', 'success');
+                
+                startRecognitionLoop();
+            } catch (err) {
+                console.error(err);
+                showStatus('Camera or Model Loading Failed!', 'active');
+                bannerDot.style.backgroundColor = '#e55353';
+                showToast('biometric initialization error. Please check permissions.', 'error');
+            }
+        }
+
+        // Initialize webcam hardware
+        async function startWebcam() {
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { width: 640, height: 480, facingMode: 'user' }
+            });
+            video.srcObject = stream;
+            
+            // Adjust canvas once video plays
+            return new Promise((resolve) => {
+                video.onloadedmetadata = () => {
+                    const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                    faceapi.matchDimensions(canvas, displaySize);
+                    resolve();
+                };
+            });
+        }
+
+        // Sync Registered Descriptors from Server
+        async function syncRegisteredFaces() {
+            try {
+                const res = await fetch('/api/registered-faces');
+                registeredFaces = await res.json();
+                
+                lblTotalRegistered.textContent = registeredFaces.length;
+
+                if (registeredFaces.length > 0) {
+                    const labeledDescriptors = registeredFaces.map(f => {
+                        // Cast descriptor back to Float32Array
+                        const descArray = new Float32Array(f.descriptor);
+                        return new faceapi.LabeledFaceDescriptors(f.name, [descArray]);
+                    });
+                    faceMatcher = new faceapi.FaceMatcher(labeledDescriptors, 0.55); // 0.55 is threshold distance
+                } else {
+                    faceMatcher = null;
+                }
+                
+                // Fetch attendance logs too
+                await syncAttendanceLogs();
+            } catch (err) {
+                console.error('Failed to sync descriptors:', err);
+                showToast('Failed to connect to backend server API.', 'error');
+            }
+        }
+
+        // Fetch logs from backend
+        async function syncAttendanceLogs() {
+            try {
+                const res = await fetch('/api/attendance');
+                const logs = await res.json();
+                
+                // Synchronize client-side lockout state from existing server logs
+                const nowMs = Date.now();
+                logs.forEach(log => {
+                    const logTime = log.dateISO ? new Date(log.dateISO).getTime() : new Date(log.timestamp).getTime();
+                    if (!isNaN(logTime) && (nowMs - logTime) < 300000) {
+                        if (!lastLoggedTimes[log.name] || lastLoggedTimes[log.name] < logTime) {
+                            lastLoggedTimes[log.name] = logTime;
+                        }
+                    }
+                });
+
+                renderLogs(logs);
+            } catch (err) {
+                console.error('Failed to sync logs:', err);
+            }
+        }
+
+        // Real-Time Face recognition Loop
+        function startRecognitionLoop() {
+            if (recognitionLoop) clearInterval(recognitionLoop);
+
+            recognitionLoop = setInterval(async () => {
+                if (!chkActive.checked || !isModelsLoaded) return;
+
+                const displaySize = { width: video.videoWidth, height: video.videoHeight };
+                
+                // Detect faces in frame
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptors();
+
+                // Clear canvas
+                const ctx = canvas.getContext('2d');
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+                const resizedDetections = faceapi.resizeResults(detections, displaySize);
+
+                resizedDetections.forEach(detection => {
+                    let label = "Scanning Face...";
+                    let color = "#ff8f16"; // Brand orange by default
+
+                    if (faceMatcher) {
+                        const match = faceMatcher.findBestMatch(detection.descriptor);
+                        if (match.label !== 'unknown') {
+                            label = `${match.label} (${Math.round((1 - match.distance) * 100)}%)`;
+                            color = "#2dce89"; // Success green
+
+                            // Log Attendance for matched name
+                            recordAttendance(match.label);
+                        } else {
+                            label = "Unknown Student";
+                            color = "#e55353"; // Alert red
+                        }
+                    }
+
+                    // Mirror the x-coordinate horizontally to align with the CSS-mirrored webcam video
+                    const { x: rawX, y, width, height } = detection.detection.box;
+                    const x = canvas.width - rawX - width;
+                    
+                    ctx.strokeStyle = color;
+                    ctx.lineWidth = 3;
+                    ctx.shadowColor = color;
+                    ctx.shadowBlur = 6;
+                    
+                    // Draw nice rounded corner frame corners
+                    const r = 10;
+                    ctx.beginPath();
+                    ctx.moveTo(x + r, y);
+                    ctx.lineTo(x + width - r, y);
+                    ctx.quadraticCurveTo(x + width, y, x + width, y + r);
+                    ctx.lineTo(x + width, y + height - r);
+                    ctx.quadraticCurveTo(x + width, y + height, x + width - r, y + height);
+                    ctx.lineTo(x + r, y + height);
+                    ctx.quadraticCurveTo(x, y + height, x, y + height - r);
+                    ctx.lineTo(x, y + r);
+                    ctx.quadraticCurveTo(x, y, x + r, y);
+                    ctx.stroke();
+
+                    // Reset shadow for text
+                    ctx.shadowBlur = 0;
+
+                    // Draw Label Card
+                    ctx.fillStyle = color;
+                    ctx.fillRect(x, y - 30, ctx.measureText(label).width + 16, 30);
+
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = 'bold 12px Inter';
+                    ctx.fillText(label, x + 8, y - 10);
+                });
+            }, 100);
+        }
+
+        // Post Attendance Log to backend
+        async function recordAttendance(name) {
+            const nowMs = Date.now();
+            // Client-side guard: block sending requests for already matched students in the 5-min window
+            if (lastLoggedTimes[name] && (nowMs - lastLoggedTimes[name]) < 300000) {
+                return;
+            }
+            // Temporarily set the lock to prevent overlapping calls during the fetch
+            lastLoggedTimes[name] = nowMs;
+
+            try {
+                const res = await fetch('/api/attendance', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name })
+                });
+                const data = await res.json();
+
+                if (data.success) {
+                    showToast(`Attendance marked for ${name}!`, 'success');
+                    announceMarked(name);
+                    await syncAttendanceLogs();
+                } else {
+                    // If server already locked it, keep lock and sync logs
+                    await syncAttendanceLogs();
+                }
+            } catch (err) {
+                console.error('Failed to post attendance:', err);
+                // Clear lockout on network failure to allow retry
+                delete lastLoggedTimes[name];
+            }
+        }
+
+        // Synthesize welcome announcement sound
+        function announceMarked(name) {
+            if (!chkVoice.checked) return;
+
+            const now = Date.now();
+            // Restrict speech triggering to once every 10 seconds per student to prevent overlapping announcements
+            if (lastAnnouncedName === name && (now - lastAnnouncedTime) < 10000) return;
+
+            lastAnnouncedName = name;
+            lastAnnouncedTime = now;
+
+            const synth = window.speechSynthesis;
+            const text = `Welcome back, ${name}! Your attendance has been logged.`;
+            const utter = new SpeechSynthesisUtterance(text);
+            
+            // Try to find a professional natural English voice
+            const voices = synth.getVoices();
+            const preferredVoice = voices.find(v => v.lang.includes('en-US') && v.name.includes('Google'));
+            if (preferredVoice) utter.voice = preferredVoice;
+            
+            utter.rate = 0.95; // Slightly slower speed for clearer chimes
+            utter.pitch = 1.05;
+            
+            synth.speak(utter);
+        }
+
+        // Register Current Face snapshot
+        btnRegister.addEventListener('click', async () => {
+            const name = txtName.value.trim();
+            if (!name) {
+                showToast('Please enter a name first!', 'error');
+                txtName.focus();
+                return;
+            }
+
+            btnRegister.disabled = true;
+            showStatus('Registering biometric signature...', 'active');
+
+            try {
+                // Compute descriptor
+                const detection = await faceapi.detectSingleFace(video, new faceapi.TinyFaceDetectorOptions({ inputSize: 224, scoreThreshold: 0.45 }))
+                    .withFaceLandmarks()
+                    .withFaceDescriptor();
+
+                if (!detection) {
+                    showToast('No face detected in camera! Please reposition.', 'error');
+                    showStatus('Camera active: Recognition Mode', 'success');
+                    btnRegister.disabled = false;
+                    return;
+                }
+
+                // Cast descriptor Float32Array to native array for JSON transmission
+                const descriptorArray = Array.from(detection.descriptor);
+
+                const res = await fetch('/api/register-face', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ name, descriptor: descriptorArray })
+                });
+
+                const data = await res.json();
+                if (data.success) {
+                    showToast(`Registered successfully!`, 'success');
+                    txtName.value = "";
+                    await syncRegisteredFaces();
+                    if (chkVoice.checked) {
+                        const synth = window.speechSynthesis;
+                        synth.speak(new SpeechSynthesisUtterance(`Face registered for student ${name}.`));
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                showToast('Biometric capture error.', 'error');
+            }
+
+            showStatus('Camera active: Recognition Mode', 'success');
+            btnRegister.disabled = false;
+        });
+
+        // Toggle Marking state listener
+        chkActive.addEventListener('change', () => {
+            const ctx = canvas.getContext('2d');
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            if (chkActive.checked) {
+                showStatus('Camera active: Recognition Mode', 'success');
+            } else {
+                showStatus('Marking Attendance Paused', 'active');
+            }
+        });
+
+        // Render Logs list
+        function renderLogs(logs) {
+            // Calculate unique students logged today
+            const uniqueToday = new Set(logs.map(l => l.name)).size;
+            lblTotalPresent.textContent = uniqueToday;
+
+            if (logs.length === 0) {
+                logsList.innerHTML = '';
+                logsList.appendChild(logsEmpty);
+                return;
+            }
+
+            logsList.innerHTML = logs.map(log => `
+                <div class="log-item">
+                    <div>
+                        <div class="log-name">${log.name}</div>
+                        <div class="log-time">${log.timestamp}</div>
+                    </div>
+                    <span class="log-badge">Present</span>
+                </div>
+            `).join('');
+        }
+
+        // Helper: Update Banner details
+        function showStatus(msg, state) {
+            bannerText.textContent = msg;
+            if (state === 'success') {
+                bannerDot.className = "status-dot success";
+            } else {
+                bannerDot.className = "status-dot active";
+            }
+        }
+
+        // Helper: Show custom premium toast alert
+        function showToast(msg, type = 'info') {
+            const container = document.getElementById('toastContainer');
+            const el = document.createElement('div');
+            el.className = `toast ${type === 'success' ? 'success' : ''}`;
+            
+            const icon = type === 'success' ? 'la-check-circle' : 'la-exclamation-circle';
+            el.innerHTML = `
+                <i class="la ${icon}" style="font-size: 1.2rem; color: ${type === 'success' ? 'var(--accent-green)' : 'var(--accent)'};"></i>
+                <span>${msg}</span>
+            `;
+            
+            container.appendChild(el);
+
+            setTimeout(() => {
+                el.style.animation = 'slideIn 0.3s cubic-bezier(0.16, 1, 0.3, 1) reverse forwards';
+                setTimeout(() => el.remove(), 300);
+            }, 3500);
+        }
+
+        // Boot
+        window.onload = boot;
+    </script>
+</body>
+</html>

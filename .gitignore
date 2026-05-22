@@ -1,0 +1,10 @@
+# Dependency directories
+node_modules/
+
+# Local environment variables & credentials
+.env
+
+# Local database/state files (avoid committing personal attendance logs)
+registered_faces.json
+attendance_logs.json
+attendance.csv

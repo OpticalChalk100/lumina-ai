@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Lumina AI — Chat</title>
+    <meta name="description" content="A clean AI chat interface powered by Hugging Face Inference Providers.">
+    <link rel="stylesheet" href="style.css">
+    <style>
+        .dashboard-btn {
+            color: #ff8f16 !important;
+            border-color: rgba(255, 143, 22, 0.3) !important;
+            background: rgba(255, 143, 22, 0.08) !important;
+            transition: all 0.2s ease !important;
+        }
+        .dashboard-btn:hover {
+            background: rgba(255, 143, 22, 0.2) !important;
+            border-color: #ff8f16 !important;
+            color: #ff8f16 !important;
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 143, 22, 0.15);
+        }
+    </style>
+</head>
+<body>
+
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="app-container">
+
+        <!-- Sidebar -->
+        <aside class="sidebar" id="sidebar">
+            <div class="brand">
+                <div class="brand-icon">
+                    <i data-lucide="sparkles" style="width:16px;height:16px;color:#000;"></i>
+                </div>
+                <h1 class="brand-title">Lumina AI</h1>
+            </div>
+
+            <!-- Sessions -->
+            <div class="sessions-container" id="sessionsContainer">
+                <button class="new-chat-btn" id="btnNewChat">
+                    <i data-lucide="plus" style="width:14px;height:14px;"></i>
+                    New Chat
+                </button>
+                <div id="sessionsList"></div>
+            </div>
+
+            <!-- Settings -->
+            <div class="settings-section">
+                <!-- Token -->
+                <div class="setting-group">
+                    <div class="setting-label">HF API Token</div>
+                    <div class="input-glow-wrapper token-input-container">
+                        <input type="password" id="hfToken" class="setting-input" placeholder="hf_xxxxxxxxxxxxxxxx">
+                        <button class="btn-toggle-visibility" id="btnToggleToken" title="Show/hide token">
+                            <i data-lucide="eye" style="width:14px;height:14px;"></i>
+                        </button>
+                    </div>
+                    <div class="help-text">
+                        Needs <strong>"Inference Providers"</strong> permission. <a href="https://huggingface.co/settings/tokens" target="_blank" rel="noopener noreferrer">Get token →</a>
+                    </div>
+                </div>
+
+                <!-- Model -->
+                <div class="setting-group">
+                    <div class="setting-label">Model</div>
+                    <div class="input-glow-wrapper">
+                        <select id="modelSelector" class="setting-select">
+                            <option value="meta-llama/Llama-3.3-70B-Instruct:groq">Llama 3.3 70B ⚡ Fastest</option>
+                            <option value="meta-llama/Llama-3.1-8B-Instruct:novita">Llama 3.1 8B 💰 Cheapest</option>
+                            <option value="deepseek-ai/DeepSeek-V3:novita">DeepSeek V3</option>
+                            <option value="Qwen/Qwen2.5-72B-Instruct:novita">Qwen 2.5 72B 🧠 Smart</option>
+                            <option value="meta-llama/Meta-Llama-3-8B-Instruct:novita">Meta Llama 3 8B</option>
+                            <option value="custom">Custom model ID...</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- Custom model -->
+                <div class="setting-group" id="customModelGroup" style="display:none;">
+                    <div class="setting-label">Custom Model ID</div>
+                    <div class="input-glow-wrapper">
+                        <input type="text" id="customModelId" class="setting-input" placeholder="org/model-name:provider">
+                    </div>
+                </div>
+
+                <!-- System prompt -->
+                <div class="setting-group">
+                    <div class="setting-label">System Prompt</div>
+                    <div class="input-glow-wrapper">
+                        <input type="text" id="systemPrompt" class="setting-input" value="You are Lumina, a brilliant and concise AI assistant." placeholder="System personality...">
+                    </div>
+                </div>
+
+                <!-- Temperature -->
+                <div class="setting-group">
+                    <div class="setting-label">
+                        Temperature
+                        <span class="setting-value-badge" id="tempBadge">0.7</span>
+                    </div>
+                    <input type="range" id="tempSlider" class="setting-slider" min="0.1" max="1.5" step="0.1" value="0.7">
+                </div>
+
+                <!-- Max tokens -->
+                <div class="setting-group">
+                    <div class="setting-label">
+                        Max Tokens
+                        <span class="setting-value-badge" id="tokensBadge">1024</span>
+                    </div>
+                    <input type="range" id="tokensSlider" class="setting-slider" min="128" max="4096" step="128" value="1024">
+                </div>
+            </div>
+        </aside>
+
+        <!-- Main chat -->
+        <main class="chat-container">
+            <header class="chat-header">
+                <div class="header-meta">
+                    <button class="menu-toggle-btn" id="menuToggle" aria-label="Toggle sidebar">
+                        <i data-lucide="menu" style="width:18px;height:18px;"></i>
+                    </button>
+                    <div class="model-badge-wrapper">
+                        <div class="active-model-title" id="activeModelTitle">Llama-3.3-70B-Instruct</div>
+                        <div class="active-model-subtitle" id="activeModelSubtitle">Ready</div>
+                    </div>
+                </div>
+                <div class="header-actions">
+                    <button class="header-btn dashboard-btn" onclick="window.history.back()" title="Back to Dashboard">
+                        <i data-lucide="home" style="width:13px;height:13px;stroke: #ff8f16;"></i>
+                        <span style="font-weight: 600; color: #ff8f16;">Dashboard</span>
+                    </button>
+                    <div class="status-badge" id="connectionStatusBadge">
+                        <div class="status-indicator"></div>
+                        <span id="statusText">No Token</span>
+                    </div>
+                    <button class="header-btn" id="btnClearHistory" title="Clear all chats">
+                        <i data-lucide="trash-2" style="width:13px;height:13px;"></i>
+                        Clear
+                    </button>
+                </div>
+            </header>
+
+            <!-- Messages -->
+            <section class="messages-viewport" id="messagesViewport">
+                <div class="welcome-overlay" id="welcomeOverlay">
+                    <div class="welcome-logo">
+                        <i data-lucide="bot" style="color:#000;width:24px;height:24px;"></i>
+                    </div>
+                    <h2 class="welcome-title">How can I help you?</h2>
+                    <p class="welcome-subtitle">
+                        Add your Hugging Face token in the sidebar, select a model, and start chatting.
+                    </p>
+
+                    <div class="quick-prompts-grid">
+                        <button class="quick-prompt-card" data-prompt="Write an async JavaScript function that fetches data from an API with retry logic and timeout handling.">
+                            <i data-lucide="code" class="quick-prompt-icon" style="width:16px;height:16px;"></i>
+                            <div class="quick-prompt-headline">Async JS function</div>
+                            <div class="quick-prompt-desc">Fetch with retry and timeout</div>
+                        </button>
+                        <button class="quick-prompt-card" data-prompt="Explain the difference between useEffect and useLayoutEffect in React with examples.">
+                            <i data-lucide="layers" class="quick-prompt-icon" style="width:16px;height:16px;"></i>
+                            <div class="quick-prompt-headline">React Hooks</div>
+                            <div class="quick-prompt-desc">useEffect vs useLayoutEffect</div>
+                        </button>
+                        <button class="quick-prompt-card" data-prompt="Write a Python function to parse a JSON file, handle errors gracefully, and return a typed dataclass.">
+                            <i data-lucide="file-code" class="quick-prompt-icon" style="width:16px;height:16px;"></i>
+                            <div class="quick-prompt-headline">Python JSON parser</div>
+                            <div class="quick-prompt-desc">With error handling and dataclass</div>
+                        </button>
+                        <button class="quick-prompt-card" data-prompt="Give me 5 practical CSS tips to make a website feel more premium and polished without a design system.">
+                            <i data-lucide="palette" class="quick-prompt-icon" style="width:16px;height:16px;"></i>
+                            <div class="quick-prompt-headline">CSS polish tips</div>
+                            <div class="quick-prompt-desc">Make any site feel premium</div>
+                        </button>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Input -->
+            <footer class="chat-input-area">
+                <div class="input-box-glass">
+                    <div class="input-textarea-wrapper">
+                        <textarea id="chatInput" class="chat-textarea" placeholder="Ask anything..." rows="1"></textarea>
+                        <button class="btn-send-message" id="btnSend" disabled aria-label="Send">
+                            <i data-lucide="send" style="width:15px;height:15px;"></i>
+                        </button>
+                    </div>
+                    <div class="input-controls-row">
+                        <div class="input-tips">
+                            <i data-lucide="corner-down-left" style="width:11px;height:11px;"></i>
+                            <span>Enter to send · Shift+Enter for newline</span>
+                        </div>
+                        <div class="input-warning-badge" id="inputWarning">
+                            <i data-lucide="alert-triangle" style="width:11px;height:11px;"></i>
+                            <span>Add your HF token to start</span>
+                        </div>
+                    </div>
+                </div>
+            </footer>
+        </main>
+    </div>
+
+    <div class="toast-container" id="toastContainer"></div>
+
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script type="module" src="markdown.js"></script>
+    <script type="module" src="hf-api.js"></script>
+    <script type="module" src="app.js"></script>
+</body>
+</html>
