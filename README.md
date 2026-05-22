@@ -6,7 +6,7 @@ Lumina AI is a premium, high-performance web application that features a sophist
 
 ## 🚀 Live Demo
 
-### **[👉 Click Here to Use Lumina AI Live! 👈](https://YOUR_DEPLOYED_URL_HERE.onrender.com)**
+### **[👉 Click Here to Use Lumina AI Live! 👈](https://lumina-ai-iknh.onrender.com)**
 
 > [!NOTE]
 > *No account or API token is required! You can start asking questions immediately. Your Hugging Face token is securely managed on our backend server and remains 100% hidden.*
